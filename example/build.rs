@@ -15,5 +15,6 @@ fn main() {
             "res://icons/gd/",
             "https://raw.githubusercontent.com/godotengine/godot/refs/heads/master/editor/icons/",
         )
+        .add_icon_source("res://icons/local/", "./icons")
         .generate();
 }

@@ -172,6 +172,50 @@ pub fn apply_icons_from_comments(
                 }
             } else {
                 // assume it's a local path, find the file and copy it to the resource path
+                let local_icon_path = Path::new(icon_source_url)
+                    .join(icon_name)
+                    .to_string_lossy()
+                    .to_string();
+
+                println!(
+                    "cargo::warning=local path {} icon source {}",
+                    local_icon_path, icon_source_url
+                );
+
+                if !Path::new(&local_icon_path).exists() {
+                    println!(
+                        "cargo::warning=Local icon source {} does not exist, skipping",
+                        local_icon_path
+                    );
+                    continue;
+                }
+
+                let icon_dir = Path::new(&icon_path).parent().unwrap();
+                if !icon_dir.exists() {
+                    fs::create_dir_all(icon_dir).unwrap_or_else(|_| {
+                        println!(
+                            "cargo::warning=Failed to create directory {} for icon {}, skipping",
+                            icon_dir.display(),
+                            icon_name
+                        );
+                    });
+                }
+
+                let result = fs::copy(&local_icon_path, &icon_path);
+                if result.is_err() {
+                    println!(
+                        "cargo::warning=Failed to copy icon from {} to {}, error: {}, skipping",
+                        local_icon_path,
+                        icon_path,
+                        result.err().unwrap()
+                    );
+                    continue;
+                } else {
+                    println!(
+                        "cargo::warning=Icon {} copied from {} to {}",
+                        icon_name, local_icon_path, icon_path
+                    );
+                }
             }
 
             icons_to_apply.insert(icon_class.to_string(), icon_path.clone());

@@ -1,4 +1,4 @@
-// File included to test icon comment parsing
+// File included to test remote icon comment parsing
 
 use godot::prelude::*;
 use godot::{
@@ -13,12 +13,5 @@ pub struct Menu {
 }
 
 #[godot_api]
-impl IControl for Menu {
-    // fn init(base: Base<Control>) -> Self {
-    //  Self {
-    //   base
-    //  }
-    // }
-}
-
+impl IControl for Menu {}
 impl Menu {}
