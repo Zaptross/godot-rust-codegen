@@ -53,14 +53,14 @@ pub fn generate_layers_consts(output_dir: &str, godot_project: &ProjectGodot) ->
         map
     };
 
-    let output_lines = format!(
-        "#![allow(dead_code)]\n\n{}",
-        layers_by_group
-            .iter()
-            .map(|(group, layers)| format_group_to_enum(group, layers))
-            .collect::<Vec<String>>()
-            .join("\n")
-    );
+    let mut rendered_groups = layers_by_group
+        .iter()
+        .map(|(group, layers)| format_group_to_enum(group, layers))
+        .collect::<Vec<String>>();
+
+    rendered_groups.sort();
+
+    let output_lines = format!("#![allow(dead_code)]\n\n{}", rendered_groups.join("\n"));
 
     let layers_path = Path::new(output_dir).join("layers.rs");
 
