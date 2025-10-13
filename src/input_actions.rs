@@ -262,7 +262,7 @@ fn test_format_action_to_invocation_trait() {
     );
     assert_eq!(
         format_action_to_invocation_trait("MultiKey", &vec!["Shift+Ctrl+Alt+X".into(), "Y".into()]),
-        "    /// Returns true while Shift+Ctrl+Alt+X` or `Y are pressed\n    fn is_multi_key_pressed(&self) -> bool;\n    /// Returns true when Shift+Ctrl+Alt+X` or `Y are just pressed\n    fn is_multi_key_just_pressed(&self) -> bool;\n    /// Returns true when Shift+Ctrl+Alt+X` or `Y are just released\n    fn is_multi_key_just_released(&self) -> bool;"
+        "    /// Returns true while `Shift+Ctrl+Alt+X` or `Y are pressed`\n    fn is_multi_key_pressed(&self) -> bool;\n    /// Returns true when `Shift+Ctrl+Alt+X` or `Y are just pressed`\n    fn is_multi_key_just_pressed(&self) -> bool;\n    /// Returns true when `Shift+Ctrl+Alt+X` or `Y are just released`\n    fn is_multi_key_just_released(&self) -> bool;"
     );
 }
 
