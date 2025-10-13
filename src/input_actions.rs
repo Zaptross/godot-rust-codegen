@@ -254,11 +254,11 @@ fn format_action_to_invocation_trait(action: &str, keystrokes: &Vec<String>) -> 
 fn test_format_action_to_invocation_trait() {
     assert_eq!(
         format_action_to_invocation_trait("Fire", &vec!["left_click".into()]),
-        "    /// Returns true while left_click is pressed\n    fn is_fire_pressed(&self) -> bool;\n    /// Returns true when left_click is just pressed\n    fn is_fire_just_pressed(&self) -> bool;\n    /// Returns true when left_click is just released\n    fn is_fire_just_released(&self) -> bool;"
+        "    /// Returns true while `left_click` is pressed\n    fn is_fire_pressed(&self) -> bool;\n    /// Returns true when `left_click` is just pressed\n    fn is_fire_just_pressed(&self) -> bool;\n    /// Returns true when `left_click` is just released\n    fn is_fire_just_released(&self) -> bool;"
     );
     assert_eq!(
         format_action_to_invocation_trait("CtrlA", &vec!["Ctrl+A".into()]),
-        "    /// Returns true while Ctrl+A are pressed\n    fn is_ctrl_a_pressed(&self) -> bool;\n    /// Returns true when Ctrl+A are just pressed\n    fn is_ctrl_a_just_pressed(&self) -> bool;\n    /// Returns true when Ctrl+A are just released\n    fn is_ctrl_a_just_released(&self) -> bool;"
+        "    /// Returns true while `Ctrl+A` are pressed\n    fn is_ctrl_a_pressed(&self) -> bool;\n    /// Returns true when `Ctrl+A` are just pressed\n    fn is_ctrl_a_just_pressed(&self) -> bool;\n    /// Returns true when `Ctrl+A` are just released\n    fn is_ctrl_a_just_released(&self) -> bool;"
     );
     assert_eq!(
         format_action_to_invocation_trait("MultiKey", &vec!["Shift+Ctrl+Alt+X".into(), "Y".into()]),
