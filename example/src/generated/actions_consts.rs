@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 use godot::builtin::StringName;
 
-/// Maps to: `left_click`
+/// Maps to: `left_click` or `J`
 pub fn FIRE() -> StringName { StringName::from("Fire") }
 /// Maps to: `SPACE`
 pub fn JUMP() -> StringName { StringName::from("jump") }

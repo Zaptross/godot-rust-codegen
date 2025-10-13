@@ -70,7 +70,7 @@ pub fn generate_actions(
         let input_actions = actions
             .iter()
             .map(|(action, events)| {
-                format_action_to_const(action, &get_action_keystroke_doc_comment(&events[0]))
+                format_action_to_const(action, &get_action_keystroke_doc_comment(events))
             })
             .collect::<Vec<String>>()
             .join("\n");
@@ -87,7 +87,7 @@ pub fn generate_actions(
     if output_invocations {
         let trait_defs = actions
             .iter()
-            .map(|(action, events)| format_action_to_invocation_trait(action, &events[0]))
+            .map(|(action, events)| format_action_to_invocation_trait(action, events))
             .collect::<Vec<String>>()
             .join("\n\n");
         let impl_defs = actions
@@ -120,14 +120,25 @@ fn make_path_if_not_exists(path: &str) {
     }
 }
 
-fn get_action_keystroke_doc_comment(keystroke: &str) -> String {
-    format!("/// Maps to: `{}`", keystroke)
+fn get_action_keystroke_doc_comment(keystrokes: &Vec<String>) -> String {
+    format!(
+        "/// Maps to: `{}`",
+        keystrokes
+            .iter()
+            .map(|k| k.as_str())
+            .collect::<Vec<&str>>()
+            .join("` or `")
+    )
 }
 #[test]
 fn test_get_action_keystroke_doc_comment() {
     assert_eq!(
-        get_action_keystroke_doc_comment("Ctrl+A"),
+        get_action_keystroke_doc_comment(&vec!["Ctrl+A".into()]),
         "/// Maps to: `Ctrl+A`"
+    );
+    assert_eq!(
+        get_action_keystroke_doc_comment(&vec!["left_click".into(), "mouse_left".into()]),
+        "/// Maps to: `left_click` or `mouse_left`"
     );
 }
 
@@ -199,24 +210,41 @@ fn test_get_invocations_file_content() {
     );
 }
 
-fn format_action_to_invocation_trait(action: &str, keystroke: &str) -> String {
+fn join_keystrokes(keystrokes: &Vec<String>) -> String {
+    keystrokes.join("` or `")
+}
+#[test]
+fn test_join_keystrokes() {
+    assert_eq!(join_keystrokes(&vec!["Ctrl+A".into()]), "Ctrl+A");
+    assert_eq!(
+        join_keystrokes(&vec!["left_click".into(), "mouse_left".into()]),
+        "left_click` or `mouse_left"
+    );
+}
+
+fn format_action_to_invocation_trait(action: &str, keystrokes: &Vec<String>) -> String {
     let sc = pascal_to_snake_case(action);
-    let conjunction = if keystroke.contains("+") { "are" } else { "is" };
+    let joined_keystrokes = join_keystrokes(keystrokes);
+    let conjunction = if keystrokes[0].contains("+") {
+        "are"
+    } else {
+        "is"
+    };
 
     vec![
         format!(
-            "    /// Returns true while {} {} pressed",
-            keystroke, conjunction
+            "    /// Returns true while `{}` {} pressed",
+            joined_keystrokes, conjunction
         ),
         format!("fn is_{}_pressed(&self) -> bool;", sc),
         format!(
-            "/// Returns true when {} {} just pressed",
-            keystroke, conjunction
+            "/// Returns true when `{}` {} just pressed",
+            joined_keystrokes, conjunction
         ),
         format!("fn is_{}_just_pressed(&self) -> bool;", sc),
         format!(
-            "/// Returns true when {} {} just released",
-            keystroke, conjunction
+            "/// Returns true when `{}` {} just released",
+            joined_keystrokes, conjunction
         ),
         format!("fn is_{}_just_released(&self) -> bool;", sc),
     ]
@@ -225,12 +253,16 @@ fn format_action_to_invocation_trait(action: &str, keystroke: &str) -> String {
 #[test]
 fn test_format_action_to_invocation_trait() {
     assert_eq!(
-        format_action_to_invocation_trait("Fire", "left_click"),
+        format_action_to_invocation_trait("Fire", &vec!["left_click".into()]),
         "    /// Returns true while left_click is pressed\n    fn is_fire_pressed(&self) -> bool;\n    /// Returns true when left_click is just pressed\n    fn is_fire_just_pressed(&self) -> bool;\n    /// Returns true when left_click is just released\n    fn is_fire_just_released(&self) -> bool;"
     );
     assert_eq!(
-        format_action_to_invocation_trait("CtrlA", "Ctrl+A"),
+        format_action_to_invocation_trait("CtrlA", &vec!["Ctrl+A".into()]),
         "    /// Returns true while Ctrl+A are pressed\n    fn is_ctrl_a_pressed(&self) -> bool;\n    /// Returns true when Ctrl+A are just pressed\n    fn is_ctrl_a_just_pressed(&self) -> bool;\n    /// Returns true when Ctrl+A are just released\n    fn is_ctrl_a_just_released(&self) -> bool;"
+    );
+    assert_eq!(
+        format_action_to_invocation_trait("MultiKey", &vec!["Shift+Ctrl+Alt+X".into(), "Y".into()]),
+        "    /// Returns true while Shift+Ctrl+Alt+X` or `Y are pressed\n    fn is_multi_key_pressed(&self) -> bool;\n    /// Returns true when Shift+Ctrl+Alt+X` or `Y are just pressed\n    fn is_multi_key_just_pressed(&self) -> bool;\n    /// Returns true when Shift+Ctrl+Alt+X` or `Y are just released\n    fn is_multi_key_just_released(&self) -> bool;"
     );
 }
 
