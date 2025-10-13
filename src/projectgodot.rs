@@ -1,6 +1,7 @@
 // Allow dead code because to better represent the structure of the file, even if some fields are not used.
 #![allow(dead_code)]
 
+use godot::{global::Key, obj::EngineEnum};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::HashMap;
@@ -11,7 +12,7 @@ pub struct ProjectGodot<'a> {
     pub application: Option<ApplicationSection<'a>>,
     pub autoload: Option<AutoloadSection<'a>>,
     pub dotnet: Option<DotnetSection<'a>>,
-    pub input: Option<InputSection<'a>>,
+    pub input: Option<InputSection>,
     pub layer_names: Option<LayerNamesSection<'a>>,
     pub rendering: Option<RenderingSection<'a>>,
 }
@@ -518,108 +519,577 @@ impl LayerNamesSection<'_> {
 /// ]
 /// }
 /// ```
-pub struct InputSection<'a> {
-    pub inputs: HashMap<&'a str, HashMap<&'a str, &'a str>>,
+pub struct InputSection {
+    pub inputs: HashMap<String, Input>,
 }
 
-impl InputSection<'_> {
+impl InputSection {
     /// Parse an input section from `project.godot` file content
-    ///
-    /// # Example
-    /// ```
-    /// # use std::collections::HashMap;
-    /// # pub struct InputSection<'a> {
-    /// #     pub inputs: HashMap<&'a str, HashMap<&'a str, &'a str>>,
-    /// # }
-    /// # impl InputSection<'_> {
-    /// #     pub fn parse<'a>(content: &'a str) -> Option<InputSection<'a>> {
-    /// #         if !content.trim().starts_with("[input]") {
-    /// #             return None;
-    /// #         }
-    /// #         let mut inputs = HashMap::new();
-    /// #         let mut current_input = None;
-    /// #         let mut in_block = false;
-    /// #         for line in content.lines() {
-    /// #             let line = line.trim();
-    /// #             if line.is_empty() || line.starts_with('#') {
-    /// #                 continue;
-    /// #             }
-    /// #             if line.starts_with('[') && line != "[input]" {
-    /// #                 break;
-    /// #             }
-    /// #             if line.contains("={") {
-    /// #                 let input_name = line.split("={").next().unwrap().trim();
-    /// #                 current_input = Some(input_name);
-    /// #                 inputs.insert(input_name, HashMap::new());
-    /// #                 in_block = true;
-    /// #             } else if line == "}" {
-    /// #                 in_block = false;
-    /// #                 current_input = None;
-    /// #             } else if in_block && line.contains(": ") {
-    /// #                 if let Some(input_name) = current_input {
-    /// #                     let parts: Vec<&str> = line.splitn(2, ": ").collect();
-    /// #                     if parts.len() == 2 {
-    /// #                         let key = parts[0].trim().trim_matches('"').trim_matches(',');
-    /// #                         let value = parts[1].trim().trim_matches('"').trim_matches(',');
-    /// #                         if let Some(input_map) = inputs.get_mut(input_name) {
-    /// #                             input_map.insert(key, value);
-    /// #                         }
-    /// #                     }
-    /// #                 }
-    /// #             }
-    /// #         }
-    /// #         Some(InputSection { inputs })
-    /// #     }
-    /// # }
-    ///
-    /// let content = r#"[input]
-    /// Fire={
-    /// "deadzone": 0.5,
-    /// "events": [Object(InputEventMouseButton,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"button_mask":0,"position":Vector2(0, 0),"global_position":Vector2(0, 0),"factor":1.0,"button_index":1,"canceled":false,"pressed":false,"double_click":false,"script":null)
-    /// ]
-    /// }
-    /// "#;
-    ///
-    /// let input_section = InputSection::parse(content).unwrap();
-    /// let fire_input = input_section.inputs.get("Fire").unwrap();
-    /// assert_eq!(fire_input.get("deadzone"), Some(&"0.5"));
-    /// ```
-    pub fn parse<'a>(content: &'a str) -> Option<InputSection<'a>> {
+    pub fn parse<'a>(content: &'a str) -> Option<InputSection> {
         if !content.trim().starts_with("[input]") {
             return None;
         }
-        let mut inputs = HashMap::new();
-        let mut current_input = None;
+
         let mut in_block = false;
+        let mut block_lines = Vec::new();
+        let mut inputs = HashMap::new();
         for line in content.lines() {
             let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
+            if line.is_empty() || line.starts_with('#') || line.starts_with('[') {
                 continue;
             }
-            if line.starts_with('[') && line != "[input]" {
-                break;
-            }
             if line.contains("={") {
-                let input_name = line.split("={").next().unwrap().trim();
-                current_input = Some(input_name);
-                inputs.insert(input_name, HashMap::new());
                 in_block = true;
-            } else if line == "}" {
-                in_block = false;
-                current_input = None;
-            } else if in_block && line.contains(": ") {
-                if let Some(input_name) = current_input {
-                    let parts: Vec<&str> = line.splitn(2, ": ").collect();
-                    if parts.len() == 2 {
-                        let key = parts[0].trim().trim_matches('"').trim_matches(',');
-                        let value = parts[1].trim().trim_matches('"').trim_matches(',');
-                        if let Some(input_map) = inputs.get_mut(input_name) {
-                            input_map.insert(key, value);
-                        }
+                block_lines = vec![line.to_string()];
+            } else if in_block {
+                block_lines.push(line.to_string());
+                if line == "}" {
+                    in_block = false;
+                    if let Some(input) = parse_input_from_input_block(block_lines.clone()) {
+                        inputs.insert(input.name.clone(), input.clone());
                     }
                 }
             }
         }
-        Some(InputSection { inputs })
+        return Some(InputSection { inputs });
+    }
+}
+
+#[test]
+fn test_input_section_parse() {
+    let content = r#"[input]
+    Fire={
+    "deadzone": 0.5,
+    "events": [Object(InputEventMouseButton,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"button_mask":0,"position":Vector2(0, 0),"global_position":Vector2(0, 0),"factor":1.0,"button_index":1,"canceled":false,"pressed":false,"double_click":false,"script":null)
+    ]
+    }
+    "#;
+    let input_section = InputSection::parse(content).unwrap();
+
+    assert_eq!(input_section.inputs.len(), 1);
+    let fire_input = input_section.inputs.get("Fire").unwrap();
+    assert_eq!(fire_input.name, "Fire");
+}
+
+#[derive(Clone)]
+pub struct Input {
+    pub name: String,
+    pub deadzone: Option<f32>,
+    pub events: Vec<InputEvent>,
+}
+
+fn parse_input_from_input_block(block_lines: Vec<String>) -> Option<Input> {
+    let mut name = String::new();
+    let mut deadzone = None;
+    let mut events = Vec::new();
+
+    for line in block_lines {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if line.contains("={") {
+            name = line.split("={").next().unwrap().trim().to_string();
+        } else if line == "}" {
+            break;
+        } else if line.contains(": ") {
+            let (key, value) = line.split_once(':').unwrap();
+            let key = key.trim().trim_matches('"');
+            let value = value.trim().trim_matches(',');
+
+            match key {
+                "deadzone" => {
+                    deadzone = value.parse::<f32>().ok();
+                }
+                "events" => {
+                    let events_str = value.trim_start_matches('[').trim_end_matches(']').trim();
+                    let event_strs = split_events_array(events_str);
+                    for event_str in event_strs {
+                        if let Some(event) = extract_input_event_from_string(&event_str) {
+                            events.push(event);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    if name.is_empty() {
+        return None;
+    }
+
+    Some(Input {
+        name,
+        deadzone,
+        events,
+    })
+}
+
+#[test]
+fn test_parse_input_from_input_block() {
+    let input = r#"Fire={
+"deadzone": 0.5,
+"events": [Object(InputEventMouseButton,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"button_mask":0,"position":Vector2(0, 0),"global_position":Vector2(0, 0),"factor":1.0,"button_index":1,"canceled":false,"pressed":false,"double_click":false,"script":null)
+]
+}"#;
+
+    let block_lines: Vec<String> = input.lines().map(|s| s.to_string()).collect();
+    let parsed_input = parse_input_from_input_block(block_lines).unwrap();
+
+    assert_eq!(parsed_input.name, "Fire");
+    assert_eq!(parsed_input.deadzone, Some(0.5));
+    assert_eq!(parsed_input.events.len(), 1);
+}
+
+#[derive(Clone)]
+pub struct InputEvent {
+    pub event_type: String, // e.g. InputEventKey, InputEventMouseButton
+    pub str_properties: HashMap<String, String>,
+    pub bool_properties: HashMap<String, bool>,
+    pub int_properties: HashMap<String, i32>,
+    pub float_properties: HashMap<String, f32>,
+    pub vec2_properties: HashMap<String, (f32, f32)>,
+}
+
+impl InputEvent {
+    // TODO - this may need to be extended to cover more cases, but for now it covers the basics
+    // eg: controller buttons
+    pub fn get_key_string(&self) -> Option<String> {
+        let ctrl = self
+            .int_properties
+            .get("ctrl_pressed")
+            .copied()
+            .unwrap_or(0)
+            == 1;
+        let shift = self
+            .int_properties
+            .get("shift_pressed")
+            .copied()
+            .unwrap_or(0)
+            == 1;
+        let alt = self.int_properties.get("alt_pressed").copied().unwrap_or(0) == 1;
+
+        let key_str = match self.event_type.as_str() {
+            "InputEventKey" => key_str_from_codes(
+                self.int_properties.get("keycode").copied(),
+                self.int_properties.get("physical_keycode").copied(),
+                self.int_properties.get("unicode").copied(),
+            ),
+            "InputEventMouseButton" => mouse_button_str_from_code(
+                self.int_properties
+                    .get("button_index")
+                    .copied()
+                    .unwrap_or(8),
+                self.bool_properties
+                    .get("double_click")
+                    .copied()
+                    .unwrap_or(false),
+            ),
+            _ => None,
+        };
+
+        return Some(format!(
+            "{}{}{}{}",
+            if ctrl { "ctrl+" } else { "" },
+            if shift { "shift+" } else { "" },
+            if alt { "alt+" } else { "" },
+            key_str.unwrap_or_else(|| "".to_string())
+        ));
+    }
+}
+
+#[test]
+fn test_input_event_get_key_string_keys() {
+    let mut event = InputEvent {
+        event_type: "InputEventKey".to_string(),
+        str_properties: HashMap::new(),
+        bool_properties: HashMap::new(),
+        int_properties: HashMap::new(),
+        float_properties: HashMap::new(),
+        vec2_properties: HashMap::new(),
+    };
+
+    event.int_properties.insert("unicode".to_string(), 97); // 'a'
+    assert_eq!(event.get_key_string(), Some("a".to_string()));
+
+    event.int_properties.insert("keycode".to_string(), 65); // 'A'
+    assert_eq!(event.get_key_string(), Some("A".to_string()));
+
+    event.int_properties.insert("ctrl_pressed".to_string(), 1);
+    assert_eq!(event.get_key_string(), Some("ctrl+A".to_string()));
+
+    event.int_properties.insert("shift_pressed".to_string(), 1);
+    assert_eq!(event.get_key_string(), Some("ctrl+shift+A".to_string()));
+
+    event.int_properties.insert("alt_pressed".to_string(), 1);
+    assert_eq!(event.get_key_string(), Some("ctrl+shift+alt+A".to_string()));
+}
+
+#[test]
+fn test_input_event_get_key_string_mouse() {
+    let mut event = InputEvent {
+        event_type: "InputEventMouseButton".to_string(),
+        str_properties: HashMap::new(),
+        bool_properties: HashMap::new(),
+        int_properties: HashMap::new(),
+        float_properties: HashMap::new(),
+        vec2_properties: HashMap::new(),
+    };
+
+    event.int_properties.insert("button_index".to_string(), 1); // Left click
+    assert_eq!(event.get_key_string(), Some("left_click".to_string()));
+
+    event
+        .bool_properties
+        .insert("double_click".to_string(), true);
+    assert_eq!(
+        event.get_key_string(),
+        Some("double_left_click".to_string())
+    );
+
+    event.int_properties.insert("button_index".to_string(), 2); // Right click
+    assert_eq!(
+        event.get_key_string(),
+        Some("double_right_click".to_string())
+    );
+
+    event.int_properties.insert("button_index".to_string(), 4); // Wheel up
+    event
+        .bool_properties
+        .insert("double_click".to_string(), false);
+    assert_eq!(event.get_key_string(), Some("wheel_up".to_string()));
+
+    event.int_properties.insert("button_index".to_string(), 5); // Wheel down
+    event
+        .bool_properties
+        .insert("double_click".to_string(), true);
+    assert_eq!(
+        event.get_key_string(),
+        Some("double_wheel_down".to_string())
+    );
+
+    event.int_properties.insert("ctrl_pressed".to_string(), 1);
+    assert_eq!(
+        event.get_key_string(),
+        Some("ctrl+double_wheel_down".to_string())
+    );
+
+    event.int_properties.insert("button_index".to_string(), 8); // Invalid button
+    assert_eq!(event.get_key_string(), Some("ctrl+".to_string()));
+}
+
+fn mouse_button_str_from_code(button_index: i32, double_click: bool) -> Option<String> {
+    Some(format!(
+        "{}{}{}",
+        if double_click { "double_" } else { "" },
+        match button_index {
+            1 => "left",
+            2 => "right",
+            3 => "middle",
+            4 => "wheel_up",
+            5 => "wheel_down",
+            6 => "wheel_left",
+            7 => "wheel_right",
+            _ => return None,
+        },
+        if button_index <= 3 { "_click" } else { "" }
+    ))
+}
+
+#[test]
+fn test_mouse_button_str_from_code() {
+    assert_eq!(
+        mouse_button_str_from_code(1, false),
+        Some("left_click".to_string())
+    );
+    assert_eq!(
+        mouse_button_str_from_code(2, true),
+        Some("double_right_click".to_string())
+    );
+    assert_eq!(
+        mouse_button_str_from_code(3, false),
+        Some("middle_click".to_string())
+    );
+    assert_eq!(
+        mouse_button_str_from_code(4, false),
+        Some("wheel_up".to_string())
+    );
+    assert_eq!(
+        mouse_button_str_from_code(5, true),
+        Some("double_wheel_down".to_string())
+    );
+    assert_eq!(mouse_button_str_from_code(8, false), None);
+    assert_eq!(mouse_button_str_from_code(8, true), None);
+}
+
+fn key_str_from_codes(
+    keycode: Option<i32>,
+    physical_keycode: Option<i32>,
+    unicode: Option<i32>,
+) -> Option<String> {
+    if let Some(code) = keycode
+        && code != 0
+    {
+        Some(Key::from_ord(code).as_str().to_string())
+    } else if let Some(code) = physical_keycode
+        && code != 0
+    {
+        Some(Key::from_ord(code).as_str().to_string())
+    } else if let Some(code) = unicode
+        && code != 0
+    {
+        let code_u8 = [code as u8];
+        return Some(
+            (match code {
+                8 => "backspace",
+                9 => "tab",
+                13 => "enter",
+                27 => "escape",
+                32 => "space",
+                127 => "delete",
+                256 => "left",
+                257 => "right",
+                258 => "up",
+                259 => "down",
+                260 => "page_up",
+                261 => "page_down",
+                262 => "home",
+                263 => "end",
+                264 => "insert",
+                265 => "f1",
+                266 => "f2",
+                267 => "f3",
+                268 => "f4",
+                269 => "f5",
+                270 => "f6",
+                271 => "f7",
+                272 => "f8",
+                273 => "f9",
+                274 => "f10",
+                275 => "f11",
+                276 => "f12",
+                _ if (32..=126).contains(&code) => {
+                    // Printable ASCII range
+                    std::str::from_utf8(&code_u8).unwrap_or("")
+                }
+                _ => "",
+            })
+            .to_string(),
+        );
+    } else {
+        None
+    }
+}
+
+#[test]
+fn test_key_str_from_codes() {
+    assert_eq!(
+        key_str_from_codes(Some(65), None, None),
+        Some("A".to_string())
+    );
+    assert_eq!(
+        key_str_from_codes(None, Some(66), None),
+        Some("B".to_string())
+    );
+    assert_eq!(
+        key_str_from_codes(None, None, Some(67)),
+        Some("C".to_string())
+    );
+    assert_eq!(
+        key_str_from_codes(None, None, Some(13)),
+        Some("enter".to_string())
+    );
+    assert_eq!(
+        key_str_from_codes(None, None, Some(32)),
+        Some("space".to_string())
+    );
+    assert_eq!(
+        key_str_from_codes(None, None, Some(256)),
+        Some("left".to_string())
+    );
+    assert_eq!(
+        key_str_from_codes(None, None, Some(300)),
+        Some("".to_string())
+    );
+    assert_eq!(key_str_from_codes(None, None, None), None);
+}
+
+/// Splits the events array string into individual event strings.
+///
+/// e.g. Given the events array string:
+/// `[Object(InputEventKey, "test":false), Object(InputEventMouseButton, "test":false)]`
+///
+/// it returns:
+///
+/// `["Object(InputEventKey, \"test\":false)", "Object(InputEventMouseButton, \"test\":false)"]`
+fn split_events_array(events: &str) -> Vec<String> {
+    lazy_static! {
+        static ref INPUT_OBJECT_REGEX: Regex =
+            Regex::new(r#"Object\(((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\)"#).unwrap();
+    };
+
+    INPUT_OBJECT_REGEX
+        .find_iter(events)
+        .map(|mat| mat.as_str().to_string())
+        .collect()
+}
+
+#[test]
+fn test_split_events_array() {
+    let input = r#"[Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"echo":false,"scancode":0,"physical_scancode":0,"pressed":false,"repeated":false,"script":null), Object(InputEventMouseButton,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"button_mask":0,"position":Vector2(0, 0),"global_position":Vector2(0, 0),"factor":1.0,"button_index":1,"canceled":false,"pressed":false,"double_click":false,"script":null)]"#;
+    let expected = vec![
+        r#"Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"echo":false,"scancode":0,"physical_scancode":0,"pressed":false,"repeated":false,"script":null)"#,
+        r#"Object(InputEventMouseButton,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"button_mask":0,"position":Vector2(0, 0),"global_position":Vector2(0, 0),"factor":1.0,"button_index":1,"canceled":false,"pressed":false,"double_click":false,"script":null)"#,
+    ];
+    assert_eq!(expected.len(), 2);
+    for (i, event) in split_events_array(input).iter().enumerate() {
+        assert_eq!(event, expected[i]);
+    }
+}
+
+fn extract_input_event_from_string(event_str: &str) -> Option<InputEvent> {
+    let maybe_split = event_str.trim_start_matches("Object(").split_once(',');
+    if maybe_split.is_none() {
+        return None;
+    }
+
+    let (event_type, properties_str) = maybe_split.unwrap();
+    let event_type = event_type.trim();
+
+    let properties = split_properties_string(properties_str);
+
+    let mut bool_properties: HashMap<String, bool> = HashMap::new();
+    let mut int_properties: HashMap<String, i32> = HashMap::new();
+    let mut float_properties: HashMap<String, f32> = HashMap::new();
+    let mut vec2_properties: HashMap<String, (f32, f32)> = HashMap::new();
+    let mut str_properties: HashMap<String, String> = HashMap::new();
+
+    for (key, value) in properties {
+        if value == "true" || value == "false" {
+            bool_properties.insert(key.to_string(), value == "true");
+        } else if let Ok(int_value) = value.parse::<i32>() {
+            int_properties.insert(key.to_string(), int_value);
+        } else if let Ok(float_value) = value.parse::<f32>() {
+            float_properties.insert(key.to_string(), float_value);
+        } else if value.starts_with("Vector2(") && value.ends_with(')') {
+            let vec_str = &value["Vector2(".len()..value.len() - 1];
+            let parts: Vec<&str> = vec_str.split(',').collect();
+            if parts.len() == 2 {
+                if let (Ok(x), Ok(y)) = (
+                    parts[0].trim().parse::<f32>(),
+                    parts[1].trim().parse::<f32>(),
+                ) {
+                    vec2_properties.insert(key.to_string(), (x, y));
+                }
+            }
+        } else if value.starts_with('"') && value.ends_with('"') {
+            str_properties.insert(key.to_string(), value.trim_matches('"').to_string());
+        } else if value == "null" {
+            str_properties.insert(key.to_string(), "null".to_string());
+        } else {
+            str_properties.insert(key.to_string(), value.to_string());
+        }
+    }
+
+    Some(InputEvent {
+        event_type: event_type.to_string(),
+        str_properties,
+        bool_properties,
+        int_properties,
+        float_properties,
+        vec2_properties,
+    })
+}
+
+#[test]
+fn test_extract_input_event_from_string() {
+    let input = r#"Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"echo":false,"scancode":0,"physical_scancode":0,"global_position":Vector2(0, 0),"pressed":false,"repeated":false,"factor":1.0,"script":null)"#;
+    let event = extract_input_event_from_string(input).unwrap();
+    assert_eq!(event.event_type, "InputEventKey");
+    assert_eq!(
+        event.bool_properties.get("resource_local_to_scene"),
+        Some(&false)
+    );
+    assert_eq!(
+        event.str_properties.get("resource_name"),
+        Some(&"".to_string())
+    );
+    assert_eq!(event.int_properties.get("device"), Some(&-1));
+    assert_eq!(event.float_properties.get("factor"), Some(&1.0));
+    assert_eq!(
+        event.vec2_properties.get("global_position"),
+        Some(&(0.0, 0.0))
+    );
+}
+
+fn split_properties_string(properties: &str) -> Vec<(&str, &str)> {
+    let mut result = Vec::new();
+    let mut in_quotes = false;
+    let mut in_parentheses = 0;
+    let mut last_split = 0;
+
+    for (i, c) in properties.char_indices() {
+        match c {
+            '"' => in_quotes = !in_quotes,
+            '(' => {
+                if !in_quotes {
+                    in_parentheses += 1;
+                }
+            }
+            ')' => {
+                if !in_quotes && in_parentheses > 0 {
+                    in_parentheses -= 1;
+                }
+            }
+            ',' => {
+                if !in_quotes && in_parentheses == 0 {
+                    let part = &properties[last_split..i];
+                    if let Some((key, value)) = part.split_once(':') {
+                        result.push((key.trim().trim_matches('"'), value.trim()));
+                    }
+                    last_split = i + 1;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Add the last part
+    if last_split < properties.len() {
+        let part = &properties[last_split..];
+        if let Some((key, value)) = part.split_once(':') {
+            result.push((key.trim().trim_matches('"'), value.trim()));
+        }
+    }
+
+    result
+}
+
+#[test]
+fn test_split_properties_string() {
+    let input = r#""resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"echo":false,"scancode":0,"physical_scancode":0,"pressed":false,"repeated":false,"factor":1.0,"script":null"#;
+    let expected = vec![
+        ("resource_local_to_scene", "false"),
+        ("resource_name", "\"\""),
+        ("device", "-1"),
+        ("window_id", "0"),
+        ("alt_pressed", "false"),
+        ("shift_pressed", "false"),
+        ("ctrl_pressed", "false"),
+        ("meta_pressed", "false"),
+        ("echo", "false"),
+        ("scancode", "0"),
+        ("physical_scancode", "0"),
+        ("pressed", "false"),
+        ("repeated", "false"),
+        ("factor", "1.0"),
+        ("script", "null"),
+    ];
+    let result = split_properties_string(input);
+    assert_eq!(result.len(), expected.len());
+    for (i, (key, value)) in result.iter().enumerate() {
+        assert_eq!(*key, expected[i].0);
+        assert_eq!(*value, expected[i].1);
     }
 }
