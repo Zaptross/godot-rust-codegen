@@ -1,6 +1,7 @@
 /target
 /rust.gdextension.bak
-/gd
+/gd/icons
+/gd/local
 
 # Its recommended to not commit these generated files unless you have a specific reason to do so. Here they are included for example purposes.
 # /src/generated
