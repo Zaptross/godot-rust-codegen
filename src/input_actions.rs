@@ -1,6 +1,9 @@
 use std::{fs, io::Write, path::Path};
 
-use crate::projectgodot::ProjectGodot;
+use crate::{
+    projectgodot::ProjectGodot,
+    utils::{make_path_if_not_exists, pascal_to_snake_case},
+};
 
 const MOD_CONSTS: &str = "consts";
 const MOD_INVOCATIONS: &str = "invocations";
@@ -108,18 +111,6 @@ pub fn generate_actions(
     output_mods
 }
 
-fn make_path_if_not_exists(path: &str) {
-    let path_obj = std::path::Path::new(path);
-    if !path_obj.exists() {
-        if let Some(parent) = path_obj.parent() {
-            if !parent.exists() {
-                fs::create_dir_all(parent).unwrap();
-            }
-        }
-        fs::File::create(path_obj).unwrap();
-    }
-}
-
 fn get_action_keystroke_doc_comment(keystrokes: &Vec<String>) -> String {
     format!(
         "/// Maps to: `{}`",
@@ -163,7 +154,7 @@ fn test_get_action_mod_file() {
 
 fn get_consts_file_content(consts: &str) -> String {
     format!(
-        "#![allow(dead_code)]\nuse godot::builtin::StringName;\n\n{}",
+        "#![allow(dead_code)]\n#![allow(non_snake_case)]\nuse godot::builtin::StringName;\n\n{}",
         consts
     )
 }
@@ -173,7 +164,7 @@ fn test_get_consts_file_content() {
         get_consts_file_content(
             "/// Maps to: `Ctrl+A`\npub fn CTRL_A() -> StringName { StringName::from(\"Ctrl+A\") }"
         ),
-        "#![allow(dead_code)]\nuse godot::builtin::StringName;\n\n/// Maps to: `Ctrl+A`\npub fn CTRL_A() -> StringName { StringName::from(\"Ctrl+A\") }"
+        "#![allow(dead_code)]\n#![allow(non_snake_case)]\nuse godot::builtin::StringName;\n\n/// Maps to: `Ctrl+A`\npub fn CTRL_A() -> StringName { StringName::from(\"Ctrl+A\") }"
     );
 }
 
@@ -195,7 +186,7 @@ fn test_format_action_to_const() {
 
 fn get_invocations_file_content(trait_defs: &str, impl_defs: &str) -> String {
     format!(
-        "#![allow(dead_code)]\nuse godot::{{builtin::StringName, classes::Input}};\n\npub trait InputActionInvocations {{\n{}\n}}\n\nimpl InputActionInvocations for Input {{\n{}\n}}",
+        "#![allow(dead_code)]\nuse godot::classes::Input;\n\npub trait InputActionInvocations {{\n{}\n}}\n\nimpl InputActionInvocations for Input {{\n{}\n}}",
         trait_defs, impl_defs
     )
 }
@@ -204,9 +195,9 @@ fn test_get_invocations_file_content() {
     assert_eq!(
         get_invocations_file_content(
             "    /// Returns true while left_click is pressed\n    fn is_fire_pressed(&self) -> bool;",
-            "    fn is_fire_pressed(&self) -> bool { self.is_action_pressed(StringName::from(\"Fire\")) }"
+            "    fn is_fire_pressed(&self) -> bool { self.is_action_pressed(\"Fire\") }"
         ),
-        "#![allow(dead_code)]\nuse godot::{builtin::StringName, classes::Input};\n\npub trait InputActionInvocations {\n    /// Returns true while left_click is pressed\n    fn is_fire_pressed(&self) -> bool;\n}\n\nimpl InputActionInvocations for Input {\n    fn is_fire_pressed(&self) -> bool { self.is_action_pressed(StringName::from(\"Fire\")) }\n}"
+        "#![allow(dead_code)]\nuse godot::classes::Input;\n\npub trait InputActionInvocations {\n    /// Returns true while left_click is pressed\n    fn is_fire_pressed(&self) -> bool;\n}\n\nimpl InputActionInvocations for Input {\n    fn is_fire_pressed(&self) -> bool { self.is_action_pressed(\"Fire\") }\n}"
     );
 }
 
@@ -271,19 +262,16 @@ fn format_action_to_invocation_impl(action: &str) -> String {
 
     vec![
         format!(
-            "    fn is_{}_pressed(&self) -> bool {{ self.is_action_pressed(StringName::from(\"{}\")) }}",
-            sc,
-            action
+            "    fn is_{}_pressed(&self) -> bool {{ self.is_action_pressed(\"{}\") }}",
+            sc, action
         ),
         format!(
-            "fn is_{}_just_pressed(&self) -> bool {{ self.is_action_just_pressed(StringName::from(\"{}\")) }}",
-            sc,
-            action
+            "fn is_{}_just_pressed(&self) -> bool {{ self.is_action_just_pressed(\"{}\") }}",
+            sc, action
         ),
         format!(
-            "fn is_{}_just_released(&self) -> bool {{ self.is_action_just_released(StringName::from(\"{}\")) }}",
-            sc,
-            action
+            "fn is_{}_just_released(&self) -> bool {{ self.is_action_just_released(\"{}\") }}",
+            sc, action
         ),
     ]
     .join("\n    ")
@@ -292,24 +280,6 @@ fn format_action_to_invocation_impl(action: &str) -> String {
 fn test_format_action_to_invocation_impl() {
     assert_eq!(
         format_action_to_invocation_impl("Fire"),
-        "    fn is_fire_pressed(&self) -> bool { self.is_action_pressed(StringName::from(\"Fire\")) }\n    fn is_fire_just_pressed(&self) -> bool { self.is_action_just_pressed(StringName::from(\"Fire\")) }\n    fn is_fire_just_released(&self) -> bool { self.is_action_just_released(StringName::from(\"Fire\")) }"
+        "    fn is_fire_pressed(&self) -> bool { self.is_action_pressed(\"Fire\") }\n    fn is_fire_just_pressed(&self) -> bool { self.is_action_just_pressed(\"Fire\") }\n    fn is_fire_just_released(&self) -> bool { self.is_action_just_released(\"Fire\") }"
     );
-}
-
-fn pascal_to_snake_case(s: &str) -> String {
-    let mut result = String::new();
-    for (i, c) in s.chars().enumerate() {
-        if c.is_uppercase() && i > 0 {
-            result.push('_');
-        }
-        result.push(c.to_ascii_lowercase());
-    }
-    result
-}
-#[test]
-fn test_pascal_to_snake_case() {
-    assert_eq!(pascal_to_snake_case("Fire"), "fire");
-    assert_eq!(pascal_to_snake_case("JumpAction"), "jump_action");
-    assert_eq!(pascal_to_snake_case("A"), "a");
-    assert_eq!(pascal_to_snake_case(""), "");
 }

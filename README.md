@@ -74,7 +74,11 @@ See [the example `build.rs`](./example/build.rs) for a full configuration, and r
 |Action Consts|Generates const-like functions for each action|`set_output_dir`,`set_project_godot_path`|[action_consts.rs](./example/src/generated/actions_consts.rs)|
 |Action Invocations|Generates extension functions for godot's input singleton|`set_output_dir`,`set_project_godot_path`|[action_invocations.rs](./example/src/generated/actions_invocations.rs)|
 |Icon Comments*|Manages custom class icons in `.gdextension` file from icon source|`set_output_dir`, `set_resource_path`, `set_gdextension_path`, `add_icon_source`|[rust.gdextension](./example/rust.gdextension)|
+|Scene Consts|Generates consts each scene in project|`set_output_dir`,`set_resource_path`|[scene_consts.rs](./example/src/generated/scene_consts.rs)|
+|Scene Actions\*\*\*|Generates extension functions for loading scenes|`set_output_dir`,`set_resource_path`|[scene_actions.rs](./example/src/generated/scene_actions.rs)|
 
 **\*** This procedure creates a backup, _then_ modifies your `.gdexension` file to add icon declarations. Note: the backup created this way will not be overwritten by this process, to ensure at least one good copy of the .gdextension file exists.
 
 ** Rust files generated this way will be linked together in a `mod.rs` at the specified output directory. E.g. [mod.rs](./example/src/generated/mod.rs)
+
+\*\*\* These extension functions can be called from any Node, eg: `self.change_scene_to_main()`

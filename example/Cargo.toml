@@ -3,5 +3,8 @@ name = "example"
 version = "0.1.0"
 edition = "2024"
 
+[dependencies]
+godot = { git = "https://github.com/godot-rust/gdext", branch = "master" }
+
 [build-dependencies]
 zgrcg = { path = "../" }
