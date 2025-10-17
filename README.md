@@ -81,4 +81,4 @@ See [the example `build.rs`](./example/build.rs) for a full configuration, and r
 
 ** Rust files generated this way will be linked together in a `mod.rs` at the specified output directory. E.g. [mod.rs](./example/src/generated/mod.rs)
 
-\*\*\* These extension functions can be called from any Node, eg: `self.change_scene_to_main()`
+\*\*\* These extension functions can be called from anything that can upcast to Node, eg: `self.to_gd().upcast::<Node>().change_scene_to_main()`

@@ -6,6 +6,8 @@ use godot::{
     obj::Base,
 };
 
+use crate::generated::scene_actions::SceneActions;
+
 #[derive(GodotClass)]
 #[class(init,base=Control)] // zgrcg:icon="res://icons/gd/Control.svg"
 pub struct Menu {
@@ -14,4 +16,13 @@ pub struct Menu {
 
 #[godot_api]
 impl IControl for Menu {}
-impl Menu {}
+
+#[godot_api]
+impl Menu {
+    #[func]
+    pub fn on_open_multiplayer(&self) {
+        self.to_gd()
+            .upcast::<Node>()
+            .change_scene_to_multiplayer_main();
+    }
+}
