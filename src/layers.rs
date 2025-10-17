@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fs, io::Write, path::Path};
 
-use crate::projectgodot::ProjectGodot;
+use crate::{projectgodot::ProjectGodot, utils::to_upper_camel_case};
 
 const MOD_LAYERS: &str = "layer_consts";
 
@@ -157,23 +157,4 @@ fn test_reorder_group_name() {
     let input = "2d_physics";
     let expected = "physics_2d".to_string();
     assert_eq!(reorder_group_name(input), expected);
-}
-
-/// Converts a string to UpperCamelCase.
-///
-/// e.g. "example_string" -> "ExampleString"
-fn to_upper_camel_case(s: &str) -> String {
-    let mut result = String::new();
-    let mut capitalize = true;
-    for c in s.chars() {
-        if c == '_' {
-            capitalize = true;
-        } else if capitalize {
-            result.push(c.to_ascii_uppercase());
-            capitalize = false;
-        } else {
-            result.push(c);
-        }
-    }
-    result
 }

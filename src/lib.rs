@@ -9,6 +9,8 @@ mod input_actions;
 mod layers;
 mod mod_file;
 mod projectgodot;
+mod scenes;
+mod utils;
 
 pub struct Generator {
     /// Path to output generated files to.
@@ -39,6 +41,8 @@ pub struct Generator {
     action_consts: bool,
     action_invocations: bool,
     icon_comments: bool,
+    scene_consts: bool,
+    scene_actions: bool,
 }
 
 impl Generator {
@@ -60,6 +64,8 @@ impl Generator {
             action_consts: false,
             action_invocations: false,
             icon_comments: false,
+            scene_consts: false,
+            scene_actions: false,
         }
     }
 
@@ -124,6 +130,17 @@ impl Generator {
                     .for_each(|m| modules.push(m.to_string()));
             }
             println!("cargo:rerun-if-changed={}", self.project_godot_path);
+        }
+
+        if self.scene_either_valid() {
+            scenes::generate_scenes(
+                &self.output_dir,
+                &self.resource_path,
+                self.scene_consts,
+                self.scene_actions,
+            )
+            .iter()
+            .for_each(|m| modules.push(m.to_string()));
         }
 
         if !modules.is_empty() {
@@ -236,9 +253,11 @@ impl Generator {
             return self;
         }
 
-        if !Path::new(&self.resource_path).exists() {
+        let p = Path::new(&self.resource_path);
+
+        if !p.exists() || !p.is_dir() {
             self.validation_errors.push(format!(
-                "Resource path does not exist: {}{}",
+                "Resource path does not exist or is not a directory: {}{}",
                 self.resource_path,
                 if self.resource_path.eq("../godot") {
                     " (default, change with `set_resource_path`)"
@@ -318,5 +337,24 @@ impl Generator {
             && self.gdextension_path_valid
             && self.source_path_valid
             && self.resource_path_valid
+    }
+
+    /// Enable generation of scene constants from resource directory.
+    ///
+    /// e.g. for a scene at `res://scenes/Player.tscn`, a function `SCENES_PLAYER()` will be generated, returning `StringName("res://scenes/Player.tscn")`.
+    pub fn output_scene_consts(mut self) -> Self {
+        self.scene_consts = true;
+        self
+    }
+    fn scene_either_valid(&self) -> bool {
+        self.scene_consts && self.resource_path_valid
+    }
+
+    /// Enable generation of scene actions from resource directory.
+    ///
+    // TODO - add example
+    pub fn output_scene_actions(mut self) -> Self {
+        self.scene_actions = true;
+        self
     }
 }

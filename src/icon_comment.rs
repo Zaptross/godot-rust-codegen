@@ -2,6 +2,8 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use std::{collections::HashMap, fs, io::Write, path::Path};
 
+use crate::utils::to_resource_path;
+
 // Scan Rust source files for icon comments and download/apply icons to the .gdextension file
 //
 // NOTE: does not add to the mod.rs
@@ -262,7 +264,7 @@ pub fn apply_icons_from_comments(
     let mut gdext_content = gdext_content.unwrap();
     let mut icon_assignments: Vec<String> = icons_to_apply
         .iter()
-        .map(|(class, path)| format!("{} = \"{}\"", class, path.replace(resource_path, "res:/")))
+        .map(|(class, path)| format!("{} = \"{}\"", class, to_resource_path(path, resource_path)))
         .collect();
 
     // sort assignments by class name to ensure consistent ordering

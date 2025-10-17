@@ -1,6 +1,9 @@
 use std::{fs, io::Write, path::Path};
 
-use crate::projectgodot::ProjectGodot;
+use crate::{
+    projectgodot::ProjectGodot,
+    utils::{make_path_if_not_exists, pascal_to_snake_case},
+};
 
 const MOD_CONSTS: &str = "consts";
 const MOD_INVOCATIONS: &str = "invocations";
@@ -106,18 +109,6 @@ pub fn generate_actions(
     }
 
     output_mods
-}
-
-fn make_path_if_not_exists(path: &str) {
-    let path_obj = std::path::Path::new(path);
-    if !path_obj.exists() {
-        if let Some(parent) = path_obj.parent() {
-            if !parent.exists() {
-                fs::create_dir_all(parent).unwrap();
-            }
-        }
-        fs::File::create(path_obj).unwrap();
-    }
 }
 
 fn get_action_keystroke_doc_comment(keystrokes: &Vec<String>) -> String {
@@ -294,22 +285,4 @@ fn test_format_action_to_invocation_impl() {
         format_action_to_invocation_impl("Fire"),
         "    fn is_fire_pressed(&self) -> bool { self.is_action_pressed(StringName::from(\"Fire\")) }\n    fn is_fire_just_pressed(&self) -> bool { self.is_action_just_pressed(StringName::from(\"Fire\")) }\n    fn is_fire_just_released(&self) -> bool { self.is_action_just_released(StringName::from(\"Fire\")) }"
     );
-}
-
-fn pascal_to_snake_case(s: &str) -> String {
-    let mut result = String::new();
-    for (i, c) in s.chars().enumerate() {
-        if c.is_uppercase() && i > 0 {
-            result.push('_');
-        }
-        result.push(c.to_ascii_lowercase());
-    }
-    result
-}
-#[test]
-fn test_pascal_to_snake_case() {
-    assert_eq!(pascal_to_snake_case("Fire"), "fire");
-    assert_eq!(pascal_to_snake_case("JumpAction"), "jump_action");
-    assert_eq!(pascal_to_snake_case("A"), "a");
-    assert_eq!(pascal_to_snake_case(""), "");
 }
