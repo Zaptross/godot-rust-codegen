@@ -62,7 +62,7 @@ pub fn generate_layers_consts(output_dir: &str, godot_project: &ProjectGodot) ->
 
     let output_lines = format!("#![allow(dead_code)]\n\n{}", rendered_groups.join("\n"));
 
-    let layers_path = Path::new(output_dir).join("layers.rs");
+    let layers_path = Path::new(output_dir).join(format!("{}.rs", MOD_LAYERS));
 
     let mut file = fs::File::create(layers_path).unwrap();
     file.write_all(output_lines.as_bytes()).unwrap();
