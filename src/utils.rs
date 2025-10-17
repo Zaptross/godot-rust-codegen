@@ -45,31 +45,6 @@ fn test_to_upper_camel_case() {
     assert_eq!(to_upper_camel_case(""), "");
 }
 
-/// Converts a string from UpperCamelCase to snake_case.
-///
-/// e.g. "ExampleString" -> "example_string"
-pub fn upper_camel_to_snake_case(s: &str) -> String {
-    let mut result = String::new();
-    for (i, c) in s.chars().enumerate() {
-        if c.is_uppercase() && i > 0 {
-            result.push('_');
-        }
-        result.push(c.to_ascii_lowercase());
-    }
-    result
-}
-
-#[test]
-fn test_upper_camel_to_snake_case() {
-    assert_eq!(upper_camel_to_snake_case("ExampleString"), "example_string");
-    assert_eq!(
-        upper_camel_to_snake_case("AnotherExample"),
-        "another_example"
-    );
-    assert_eq!(upper_camel_to_snake_case("Single"), "single");
-    assert_eq!(upper_camel_to_snake_case(""), "");
-}
-
 pub fn to_resource_path(path: &str, resource_path: &str) -> String {
     path.replace(resource_path, "res:/")
 }
