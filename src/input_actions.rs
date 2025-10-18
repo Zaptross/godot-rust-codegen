@@ -170,7 +170,10 @@ fn test_get_consts_file_content() {
 
 fn format_action_to_const(action: &str, doc_comment: &str) -> String {
     format!(
-        "{}\npub fn {}() -> StringName {{ StringName::from(\"{}\") }}",
+        "{}\npub fn {}() -> StringName {{ StringName::from(\"{}\") }}\n{}\npub const {}_STR: &'static str = \"{}\";",
+        doc_comment,
+        pascal_to_snake_case(action).to_ascii_uppercase(),
+        action,
         doc_comment,
         pascal_to_snake_case(action).to_ascii_uppercase(),
         action
@@ -180,7 +183,7 @@ fn format_action_to_const(action: &str, doc_comment: &str) -> String {
 fn test_format_action_to_const() {
     assert_eq!(
         format_action_to_const("Fire", "/// Maps to: `left_click`"),
-        "/// Maps to: `left_click`\npub fn FIRE() -> StringName { StringName::from(\"Fire\") }"
+        "/// Maps to: `left_click`\npub fn FIRE() -> StringName { StringName::from(\"Fire\") }\n/// Maps to: `left_click`\npub const FIRE_STR: &'static str = \"Fire\";"
     );
 }
 
